@@ -1,0 +1,51 @@
+# Build folders
+bin/
+obj/
+ 
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+ 
+# Visual Studio / VS Code
+.vs/
+.vscode/
+ 
+# Rider
+.idea/
+ 
+# Logs
+*.log
+ 
+# OS files
+.DS_Store
+Thumbs.db
+ 
+# Node (if you ever add frontend tooling)
+node_modules/
+ 
+# Blazor WASM specific
+wwwroot/_framework/
+wwwroot/lib/
+ 
+# Publish output
+publish/
+dist/
+ 
+# NuGet
+*.nupkg
+.nuget/
+ 
+# Environment files
+.env
+ 
+# Coverage / test
+TestResults/
+coverage/
+ 
+# Temporary files
+*.tmp
+*.temp
+/CommonLib1/appsettings.json
+/TestProject1/testsettings.json
