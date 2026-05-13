@@ -32,10 +32,15 @@ public class WorkloadDataService
         var today = DateOnly.FromDateTime(DateTime.Today);
         Leaves = new()
         {
-            new() { DeveloperName = "Marlou John Aquino", StartDate = today.AddDays(2),  EndDate = today.AddDays(4),  LeaveType = "Vacation"  },
-            new() { DeveloperName = "Elijah Payok",       StartDate = today.AddDays(7),  EndDate = today.AddDays(7),  LeaveType = "Sick Leave" },
-            new() { DeveloperName = "Jerrick Decena",     StartDate = today.AddDays(9),  EndDate = today.AddDays(13), LeaveType = "Vacation"  },
-            new() { DeveloperName = "Marcus Dacaymat",    StartDate = today.AddDays(-2), EndDate = today.AddDays(-1), LeaveType = "Personal"  },
+            // Active today — Marlou is currently on leave (started yesterday, ends tomorrow)
+            new() { DeveloperName = "Marlou John Aquino", StartDate = today.AddDays(-1), EndDate = today.AddDays(1),  LeaveType = "Vacation"  },
+ 
+            // Upcoming leaves
+            new() { DeveloperName = "Elijah Payok",       StartDate = today.AddDays(3),  EndDate = today.AddDays(5),  LeaveType = "Sick Leave" },
+            new() { DeveloperName = "Jerrick Decena",     StartDate = today.AddDays(7),  EndDate = today.AddDays(11), LeaveType = "Vacation"   },
+ 
+            // Past leave
+            new() { DeveloperName = "Marcus Dacaymat",    StartDate = today.AddDays(-3), EndDate = today.AddDays(-2), LeaveType = "Personal"   },
         };
 
         Tasks = new()
@@ -51,17 +56,8 @@ public class WorkloadDataService
         };
     }
 
-    // -------------------------------------------------------
-    // Placeholder: wire up ClosedXML or NPOI here to parse
-    // an uploaded .xlsx and populate the three lists above.
-    // -------------------------------------------------------
     public async Task LoadFromExcelAsync(Stream stream, string fileName)
     {
-        // TODO: implement Excel parsing
-        // Example with ClosedXML:
-        //   using var wb = new XLWorkbook(stream);
-        //   var devSheet = wb.Worksheet("Developers");
-        //   Developers = devSheet.RowsUsed().Skip(1).Select(row => new Developer { ... }).ToList();
         LoadedFileName = fileName;
         await Task.CompletedTask;
     }
@@ -72,4 +68,28 @@ public class WorkloadDataService
     public int AverageCapacity => Developers.Any() ? (int)Developers.Average(d => d.CapacityPercent) : 0;
     public int HighPriorityTasks => Tasks.Count(t => t.Priority == "High");
     public int TotalTasks => Tasks.Count;
+
+    // ---- Leave Helpers ----
+
+    /// <summary>Returns the active leave record for a developer, or null if not on leave today.</summary>
+    public LeaveRecord? GetActiveLeave(string developerName)
+        => Leaves.FirstOrDefault(l => l.DeveloperName == developerName && l.IsActive);
+
+    /// <summary>Returns upcoming leaves starting within the next 7 days for a developer.</summary>
+    public IEnumerable<LeaveRecord> GetUpcomingLeaves(string developerName)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return Leaves.Where(l =>
+            l.DeveloperName == developerName &&
+            l.StartDate > today &&
+            l.StartDate <= today.AddDays(7));
+    }
+
+    /// <summary>Returns all developers who are on leave today.</summary>
+    public IEnumerable<Developer> DevelopersOnLeaveToday()
+        => Developers.Where(d => GetActiveLeave(d.Name) != null);
+
+    /// <summary>Effective capacity: 0 if on leave today, otherwise normal CapacityPercent.</summary>
+    public int EffectiveCapacity(Developer dev)
+        => GetActiveLeave(dev.Name) != null ? 0 : dev.CapacityPercent;
 }

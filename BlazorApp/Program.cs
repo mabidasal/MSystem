@@ -9,7 +9,7 @@ builder.Services.AddRazorComponents()
 
 // Register workload service
 builder.Services.AddScoped<WorkloadDataService>();
-
+builder.Services.AddSingleton<LeaveService>();
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

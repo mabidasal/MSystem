@@ -1,0 +1,144 @@
+﻿@page "/leave"
+@using BlazorApp.Models
+@using BlazorApp.Services
+@inject LeaveService LeaveService
+
+<h3>Developer Leave Monitoring</h3>
+
+<!-- Calendar-style Leave Overview -->
+<div class="card shadow-sm p-3 mb-4">
+    <h5>Leave Calendar (Next 14 Days)</h5>
+
+    <div class="calendar-grid">
+
+        @for (int i = 0; i < 14; i++)
+        {
+            var day = DateTime.Today.AddDays(i);
+
+            var dayLeaves = leaveRequests
+                .Where(l => l.StartDate.Date <= day.Date &&
+                            l.EndDate.Date >= day.Date)
+                .ToList();
+
+            <div class="calendar-day">
+
+                <div class="calendar-date">
+                    @day.ToString("MMM dd")
+                </div>
+
+                @if (dayLeaves.Any())
+                {
+                    @foreach (var leave in dayLeaves)
+                    {
+                        <div class="leave-chip @GetLeaveClass(leave.LeaveType)">
+                            @leave.EmployeeName
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="empty-day">Available</div>
+                }
+
+            </div>
+        }
+
+    </div>
+</div>
+
+<!-- Legend -->
+<h5>Leave Legend</h5>
+
+<div class="d-flex gap-3 mb-4">
+    <span class="badge bg-success">Vacation</span>
+    <span class="badge bg-danger">Sick Leave</span>
+    <span class="badge bg-primary">WFH</span>
+</div>
+
+<!-- Table View -->
+<div class="card shadow-sm p-3">
+
+    <h5>Leave Records</h5>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Employee</th>
+                <th>Type</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var leave in leaveRequests)
+            {
+                <tr>
+                    <td>@leave.EmployeeName</td>
+                    <td>@leave.LeaveType</td>
+                    <td>@leave.StartDate.ToString("MMM dd, yyyy")</td>
+                    <td>@leave.EndDate.ToString("MMM dd, yyyy")</td>
+                    <td>@leave.Status</td>
+                </tr>
+            }
+        </tbody>
+
+    </table>
+</div>
+
+@code {
+
+    private List<LeaveRequest> leaveRequests = new();
+
+    protected override void OnInitialized()
+    {
+        leaveRequests = LeaveService.GetRequests();
+
+        // Sample data if empty
+        if (!leaveRequests.Any())
+        {
+            leaveRequests = new List<LeaveRequest>
+            {
+                new()
+                {
+                    Id = 1,
+                    EmployeeName = "Mabi",
+                    LeaveType = "Vacation",
+                    StartDate = DateTime.Today.AddDays(2),
+                    EndDate = DateTime.Today.AddDays(4),
+                    Status = "Approved"
+                },
+                new()
+                {
+                    Id = 2,
+                    EmployeeName = "John",
+                    LeaveType = "Sick",
+                    StartDate = DateTime.Today.AddDays(1),
+                    EndDate = DateTime.Today.AddDays(2),
+                    Status = "Approved"
+                },
+                new()
+                {
+                    Id = 3,
+                    EmployeeName = "Anna",
+                    LeaveType = "WFH",
+                    StartDate = DateTime.Today.AddDays(5),
+                    EndDate = DateTime.Today.AddDays(5),
+                    Status = "Approved"
+                }
+            };
+        }
+    }
+
+    private string GetLeaveClass(string type)
+    {
+        return type switch
+        {
+            "Vacation" => "vacation",
+            "Sick" => "sick",
+            "WFH" => "wfh",
+            _ => ""
+        };
+    }
+    }

@@ -7,4 +7,9 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Syncfusion.Blazor" Version="33.2.6" />
+    <PackageReference Include="Syncfusion.Blazor.Schedule" Version="33.2.6" />
+  </ItemGroup>
+
 </Project>

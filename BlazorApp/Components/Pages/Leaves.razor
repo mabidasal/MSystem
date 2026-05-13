@@ -9,21 +9,101 @@
 <div class="page-header">
     <div>
         <h1 class="page-title">Leave Tracker</h1>
-        <p class="page-sub">@DataService.Leaves.Count records · @DataService.OnLeaveToday on leave today</p>
+        <p class="page-sub">
+            @DataService.Leaves.Count records ·
+            @DataService.OnLeaveToday on leave today
+        </p>
     </div>
 </div>
 
+<!-- Leave Calendar -->
+<div class="card mb-4">
+    <div class="card-header">
+        <svg viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.8"
+             width="16"
+             height="16">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+        <span>Developer Leave Calendar</span>
+    </div>
+
+    <div class="calendar-grid">
+        @for (int i = 0; i < 30; i++)
+        {
+            var day = DateOnly.FromDateTime(DateTime.Today.AddDays(i));
+
+            var dayLeaves = DataService.Leaves
+                .Where(l => l.StartDate <= day &&
+                            l.EndDate >= day)
+                .ToList();
+
+            <div class="calendar-day">
+
+                <div class="calendar-date">
+                    @day.ToString("MMM d")
+                </div>
+
+                @if (dayLeaves.Any())
+                {
+                    @foreach (var leave in dayLeaves)
+                    {
+                        <div class="leave-chip @GetLeaveClass(leave.LeaveType)">
+                            @leave.DeveloperName
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="empty-day">
+                        Available
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="leave-legend">
+        <div class="legend-item">
+            <span class="legend-color vacation"></span>
+            Vacation
+        </div>
+
+        <div class="legend-item">
+            <span class="legend-color sick"></span>
+            Sick Leave
+        </div>
+
+        <div class="legend-item">
+            <span class="legend-color wfh"></span>
+            WFH
+        </div>
+    </div>
+</div>
+
+<!-- Leave Records Table -->
 <div class="card">
     <div class="card-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
-            <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+        <svg viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.8"
+             width="16"
+             height="16">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" />
         </svg>
         <span>All Leave Records</span>
     </div>
 
     @if (!DataService.Leaves.Any())
     {
-        <div class="empty-state">No leave records found.</div>
+        <div class="empty-state">
+            No leave records found.
+        </div>
     }
     else
     {
@@ -38,38 +118,79 @@
                     <th>Status</th>
                 </tr>
             </thead>
+
             <tbody>
-                @foreach (var (leave, i) in DataService.Leaves.OrderBy(l => l.StartDate).Select((l, i) => (l, i)))
+                @foreach (var (leave, i) in DataService.Leaves
+                .OrderBy(l => l.StartDate)
+                .Select((l, i) => (l, i)))
                 {
-                    var devIdx = DataService.Developers.FindIndex(d => d.Name == leave.DeveloperName);
-                    var days = leave.EndDate.DayNumber - leave.StartDate.DayNumber + 1;
-                    var today = DateOnly.FromDateTime(DateTime.Today);
-                    var status = leave.IsActive ? "active" : leave.EndDate < today ? "past" : "upcoming";
+                    var devIdx = DataService.Developers
+                    .FindIndex(d => d.Name == leave.DeveloperName);
+
+                    var days =
+                    leave.EndDate.DayNumber -
+                    leave.StartDate.DayNumber + 1;
+
+                    var today =
+                    DateOnly.FromDateTime(DateTime.Today);
+
+                    var status = leave.IsActive
+                    ? "active"
+                    : leave.EndDate < today
+                    ? "past"
+                    : "upcoming";
+
                     <tr>
                         <td>
                             <div style="display:flex;align-items:center;gap:10px">
-                                <div class="avatar avatar-sm avatar-@(devIdx % 8)">
-                                    @DataService.Developers.FirstOrDefault(d => d.Name == leave.DeveloperName)?.AvatarInitials
-                                </div>
-                                <span>@leave.DeveloperName</span>
+                                @foreach (var item in DataService.Leaves)
+                                {
+                                    var dev = DataService.Developers
+                                        .FirstOrDefault(d => d.Name == item.DeveloperName);
+
+                                    <div>
+                                        @(dev?.AvatarInitials)
+                                    </div>
+                                }
+
+                                <span>
+                                    @leave.DeveloperName
+                                </span>
                             </div>
                         </td>
+
                         <td>@leave.LeaveType</td>
-                        <td>@leave.StartDate.ToString("MMM d, yyyy")</td>
-                        <td>@leave.EndDate.ToString("MMM d, yyyy")</td>
-                        <td>@days day@(days == 1 ? "" : "s")</td>
+
+                        <td>
+                            @leave.StartDate.ToString("MMM d, yyyy")
+                        </td>
+
+                        <td>
+                            @leave.EndDate.ToString("MMM d, yyyy")
+                        </td>
+
+                        <td>
+                            @days day@(days == 1 ? "" : "s")
+                        </td>
+
                         <td>
                             @if (status == "active")
                             {
-                                <span class="badge badge-leave">Active</span>
+                                <span class="badge badge-leave">
+                                    Active
+                                </span>
                             }
                             else if (status == "upcoming")
                             {
-                                <span class="badge badge-upcoming">Upcoming</span>
+                                <span class="badge badge-upcoming">
+                                    Upcoming
+                                </span>
                             }
                             else
                             {
-                                <span class="badge badge-past">Past</span>
+                                <span class="badge badge-past">
+                                    Past
+                                </span>
                             }
                         </td>
                     </tr>
@@ -78,3 +199,84 @@
         </table>
     }
 </div>
+
+<style>
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 12px;
+        padding: 20px;
+    }
+
+    .calendar-day {
+        min-height: 140px;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    .calendar-date {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 12px;
+    }
+
+    .leave-chip {
+        padding: 6px 10px;
+        border-radius: 999px;
+        color: white;
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+
+    .vacation {
+        background: #22c55e;
+    }
+
+    .sick {
+        background: #ef4444;
+    }
+
+    .wfh {
+        background: #3b82f6;
+    }
+
+    .empty-day {
+        color: #9ca3af;
+        font-size: 12px;
+    }
+
+    .leave-legend {
+        display: flex;
+        gap: 20px;
+        padding: 0 20px 20px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+    }
+
+    .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+    }
+</style>
+
+@code {
+
+    private string GetLeaveClass(string leaveType)
+    {
+        return leaveType switch
+        {
+            "Vacation" => "vacation",
+            "Sick" => "sick",
+            "WFH" => "wfh",
+            _ => ""
+        };
+    }
+}
