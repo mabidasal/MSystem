@@ -1,0 +1,98 @@
+@page "/"
+@layout MainLayout
+@inject WorkloadDataService DataService
+@using BlazorApp.Models
+@using BlazorApp.Services
+
+<PageTitle>Dashboard — MSystem</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Developer Workload</h1>
+        <p class="page-sub">@DateTime.Today.ToString("dddd, MMMM d, yyyy")</p>
+    </div>
+    <label class="upload-btn" title="Upload Excel file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Upload Excel
+        <InputFile OnChange="HandleFileUpload" accept=".xlsx,.xls" style="display:none" />
+    </label>
+</div>
+
+<!-- Metric cards -->
+<div class="metrics-grid">
+    <div class="metric-card">
+        <div class="metric-label">Team Members</div>
+        <div class="metric-value">@DataService.TotalDevelopers</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">On Leave Today</div>
+        <div class="metric-value @(DataService.OnLeaveToday > 0 ? "val-warn" : "")">@DataService.OnLeaveToday</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Avg Capacity</div>
+        <div class="metric-value @CapacityClass(DataService.AverageCapacity)">@DataService.AverageCapacity<span class="metric-unit">%</span></div>
+        <div class="metric-sub">@CapacityLabel(DataService.AverageCapacity) overall</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">High Priority Tasks</div>
+        <div class="metric-value val-danger">@DataService.HighPriorityTasks</div>
+        <div class="metric-sub">of @DataService.TotalTasks total</div>
+    </div>
+</div>
+
+<!-- Developer workload list -->
+<div class="card">
+    <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        <span>Developer Workload</span>
+    </div>
+    <div class="dev-list">
+        @foreach (var (dev, idx) in DataService.Developers.Select((d, i) => (d, i)))
+        {
+            var onLeave = DataService.Leaves.Any(l => l.DeveloperName == dev.Name && l.IsActive);
+            <div class="dev-row">
+                <div class="avatar avatar-@(idx % 8)">@dev.AvatarInitials</div>
+                <div class="dev-info">
+                    <div class="dev-name">@dev.Name</div>
+                    <div class="dev-role">@dev.Role</div>
+                </div>
+                <div class="cap-bar-wrap">
+                    <div class="cap-bar @(onLeave ? "cap-bar-muted" : CapacityBarClass(dev.CapacityPercent))"
+                         style="width: @(Math.Min(dev.CapacityPercent, 100))%"></div>
+                </div>
+                <div class="cap-pct @(onLeave ? "text-muted" : CapacityClass(dev.CapacityPercent))">
+                    @dev.CapacityPercent%
+                </div>
+                @if (onLeave)
+                {
+                    <span class="badge badge-leave">On Leave</span>
+                }
+                else
+                {
+                    <span class="badge @CapacityBadgeClass(dev.CapacityPercent)">@CapacityLabel(dev.CapacityPercent)</span>
+                }
+                <div class="dev-tasks">@dev.TaskCount tasks</div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        await DataService.LoadFromExcelAsync(stream, file.Name);
+        StateHasChanged();
+    }
+
+    private string CapacityClass(int pct) => pct >= 90 ? "val-danger" : pct >= 70 ? "val-warn" : "val-ok";
+    private string CapacityBarClass(int pct) => pct >= 90 ? "cap-bar-danger" : pct >= 70 ? "cap-bar-warn" : "cap-bar-ok";
+    private string CapacityBadgeClass(int pct) => pct >= 90 ? "badge-full" : pct >= 70 ? "badge-busy" : "badge-avail";
+    private string CapacityLabel(int pct) => pct >= 90 ? "Full" : pct >= 70 ? "Busy" : "Available";
+}

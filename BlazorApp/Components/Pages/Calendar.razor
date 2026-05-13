@@ -1,0 +1,106 @@
+@page "/calendar"
+@layout MainLayout
+@inject WorkloadDataService DataService
+@using BlazorApp.Models
+@using BlazorApp.Services
+
+<PageTitle>Calendar — MSystem</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Availability Calendar</h1>
+        <p class="page-sub">Team leave and availability at a glance</p>
+    </div>
+    <div class="cal-nav">
+        <button class="btn-ghost" @onclick="PrevMonth">&#8249;</button>
+        <span class="cal-month-label">@CurrentDate.ToString("MMMM yyyy")</span>
+        <button class="btn-ghost" @onclick="NextMonth">&#8250;</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="cal-grid-header">
+        @foreach (var d in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+        {
+            <div class="cal-day-head">@d</div>
+        }
+    </div>
+    <div class="cal-grid">
+        @foreach (var cell in CalendarCells)
+        {
+            if (cell == null)
+            {
+                <div class="cal-cell cal-cell-empty"></div>
+            }
+            else
+            {
+                var leaves = GetLeavesForDay(cell.Value);
+                var isToday = cell.Value == DateOnly.FromDateTime(DateTime.Today);
+                <div class="cal-cell @(isToday ? "cal-cell-today" : "")">
+                    <span class="cal-date @(isToday ? "cal-date-today" : "")">@cell.Value.Day</span>
+                    @if (leaves.Any())
+                    {
+                        <div class="cal-dots">
+                            @foreach (var lv in leaves.Take(4))
+                            {
+                                var idx = DataService.Developers.FindIndex(d => d.Name == lv.DeveloperName);
+                                <div class="cal-dot dot-@(idx % 8)" title="@lv.DeveloperName: @lv.LeaveType"></div>
+                            }
+                        </div>
+                        @if (leaves.Count > 4)
+                        {
+                            <span class="cal-more">+@(leaves.Count - 4)</span>
+                        }
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="card" style="margin-top:1rem">
+    <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+            <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+        </svg>
+        <span>Legend — Who's on leave this month</span>
+    </div>
+    <div class="legend-grid">
+        @foreach (var (dev, idx) in DataService.Developers.Select((d, i) => (d, i)))
+        {
+            var hasLeave = DataService.Leaves.Any(l => l.DeveloperName == dev.Name &&
+                (l.StartDate.Month == CurrentDate.Month || l.EndDate.Month == CurrentDate.Month));
+            if (hasLeave)
+            {
+                <div class="legend-item">
+                    <div class="legend-dot dot-@(idx % 8)"></div>
+                    <span>@dev.Name</span>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private DateOnly CurrentDate = DateOnly.FromDateTime(DateTime.Today);
+
+    private List<DateOnly?> CalendarCells
+    {
+        get
+        {
+            var cells = new List<DateOnly?>();
+            var first = new DateOnly(CurrentDate.Year, CurrentDate.Month, 1);
+            var daysInMonth = DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month);
+            for (int i = 0; i < (int)first.DayOfWeek; i++) cells.Add(null);
+            for (int d = 1; d <= daysInMonth; d++) cells.Add(new DateOnly(CurrentDate.Year, CurrentDate.Month, d));
+            return cells;
+        }
+    }
+
+    private List<LeaveRecord> GetLeavesForDay(DateOnly day) =>
+        DataService.Leaves.Where(l => day >= l.StartDate && day <= l.EndDate).ToList();
+
+    private void PrevMonth() => CurrentDate = CurrentDate.AddMonths(-1);
+    private void NextMonth() => CurrentDate = CurrentDate.AddMonths(1);
+}

@@ -1,0 +1,99 @@
+@page "/tasks"
+@layout MainLayout
+@inject WorkloadDataService DataService
+@using BlazorApp.Models
+@using BlazorApp.Services
+
+<PageTitle>Tasks — MSystem</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Task Assignment</h1>
+        <p class="page-sub">@DataService.Tasks.Count tasks across @DataService.TotalDevelopers developers</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+    <select @bind="FilterPriority" class="filter-select">
+        <option value="">All Priorities</option>
+        <option>High</option>
+        <option>Medium</option>
+        <option>Low</option>
+    </select>
+    <select @bind="FilterAssignee" class="filter-select">
+        <option value="">All Assignees</option>
+        @foreach (var dev in DataService.Developers)
+        {
+            <option>@dev.Name</option>
+        }
+    </select>
+    <select @bind="FilterStatus" class="filter-select">
+        <option value="">All Statuses</option>
+        <option>To Do</option>
+        <option>In Progress</option>
+        <option>Done</option>
+    </select>
+    <span class="filter-count">@FilteredTasks.Count() tasks</span>
+</div>
+
+<div class="card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Task</th>
+                <th>Assignee</th>
+                <th>Due Date</th>
+                <th>Priority</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!FilteredTasks.Any())
+            {
+                <tr><td colspan="5" class="empty-state">No tasks match the current filters.</td></tr>
+            }
+            else
+            {
+                @foreach (var task in FilteredTasks)
+                {
+                    var devIdx = DataService.Developers.FindIndex(d => d.Name == task.Assignee);
+                    var overdue = task.DueDate < DateOnly.FromDateTime(DateTime.Today) && task.Status != "Done";
+                    <tr>
+                        <td class="task-title">@task.Title</td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <div class="avatar avatar-sm avatar-@(devIdx % 8)">
+                                    @DataService.Developers.FirstOrDefault(d => d.Name == task.Assignee)?.AvatarInitials
+                                </div>
+                                <span>@task.Assignee</span>
+                            </div>
+                        </td>
+                        <td class="@(overdue ? "text-danger" : "")">
+                            @task.DueDate.ToString("MMM d")
+                            @if (overdue) { <span class="overdue-tag">Overdue</span> }
+                        </td>
+                        <td><span class="badge @PrioBadgeClass(task.Priority)">@task.Priority</span></td>
+                        <td><span class="badge @StatusBadgeClass(task.Status)">@task.Status</span></td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private string FilterPriority = "";
+    private string FilterAssignee = "";
+    private string FilterStatus = "";
+
+    private IEnumerable<TaskItem> FilteredTasks => DataService.Tasks
+        .Where(t => (string.IsNullOrEmpty(FilterPriority) || t.Priority == FilterPriority)
+                 && (string.IsNullOrEmpty(FilterAssignee) || t.Assignee == FilterAssignee)
+                 && (string.IsNullOrEmpty(FilterStatus) || t.Status == FilterStatus))
+        .OrderBy(t => t.Priority == "High" ? 0 : t.Priority == "Medium" ? 1 : 2)
+        .ThenBy(t => t.DueDate);
+
+    private string PrioBadgeClass(string p) => p == "High" ? "badge-prio-high" : p == "Medium" ? "badge-prio-mid" : "badge-prio-low";
+    private string StatusBadgeClass(string s) => s == "Done" ? "badge-avail" : s == "In Progress" ? "badge-busy" : "badge-past";
+}

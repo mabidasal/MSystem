@@ -1,0 +1,80 @@
+@page "/leaves"
+@layout MainLayout
+@inject WorkloadDataService DataService
+@using BlazorApp.Models
+@using BlazorApp.Services
+
+<PageTitle>Leave Tracker — MSystem</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Leave Tracker</h1>
+        <p class="page-sub">@DataService.Leaves.Count records · @DataService.OnLeaveToday on leave today</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+        </svg>
+        <span>All Leave Records</span>
+    </div>
+
+    @if (!DataService.Leaves.Any())
+    {
+        <div class="empty-state">No leave records found.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Developer</th>
+                    <th>Leave Type</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var (leave, i) in DataService.Leaves.OrderBy(l => l.StartDate).Select((l, i) => (l, i)))
+                {
+                    var devIdx = DataService.Developers.FindIndex(d => d.Name == leave.DeveloperName);
+                    var days = leave.EndDate.DayNumber - leave.StartDate.DayNumber + 1;
+                    var today = DateOnly.FromDateTime(DateTime.Today);
+                    var status = leave.IsActive ? "active" : leave.EndDate < today ? "past" : "upcoming";
+                    <tr>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <div class="avatar avatar-sm avatar-@(devIdx % 8)">
+                                    @DataService.Developers.FirstOrDefault(d => d.Name == leave.DeveloperName)?.AvatarInitials
+                                </div>
+                                <span>@leave.DeveloperName</span>
+                            </div>
+                        </td>
+                        <td>@leave.LeaveType</td>
+                        <td>@leave.StartDate.ToString("MMM d, yyyy")</td>
+                        <td>@leave.EndDate.ToString("MMM d, yyyy")</td>
+                        <td>@days day@(days == 1 ? "" : "s")</td>
+                        <td>
+                            @if (status == "active")
+                            {
+                                <span class="badge badge-leave">Active</span>
+                            }
+                            else if (status == "upcoming")
+                            {
+                                <span class="badge badge-upcoming">Upcoming</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-past">Past</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
