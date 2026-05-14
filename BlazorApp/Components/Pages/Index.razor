@@ -9,7 +9,7 @@
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">Developer Workload</h1>
+        <h1 class="page-title">F7 Workload</h1>
         <p class="page-sub">@DateTime.Today.ToString("dddd, MMMM d, yyyy")</p>
     </div>
     <label class="upload-btn" title="Upload Excel file">
@@ -47,20 +47,26 @@
 <div class="card">
     <div class="card-header">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
         </svg>
-        <span>Developer Workload</span>
+        <span>F7 Workload</span>
     </div>
     <div class="dev-list">
         @foreach (var (dev, idx) in DataService.Developers.Select((d, i) => (d, i)))
         {
             var onLeave = DataService.Leaves.Any(l => l.DeveloperName == dev.Name && l.IsActive);
+            var project = DataService.Tasks.FirstOrDefault(t => t.Assignee == dev.Name)?.ProjectName;
             <div class="dev-row">
                 <div class="avatar avatar-@(idx % 8)">@dev.AvatarInitials</div>
                 <div class="dev-info">
                     <div class="dev-name">@dev.Name</div>
                     <div class="dev-role">@dev.Role</div>
+                    @if (!string.IsNullOrEmpty(project))
+                    {
+                        <div class="dev-project">@project</div>
+                    }
                 </div>
                 <div class="cap-bar-wrap">
                     <div class="cap-bar @(onLeave ? "cap-bar-muted" : CapacityBarClass(dev.CapacityPercent))"

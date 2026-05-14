@@ -22,6 +22,7 @@ public class TaskItem
 {
     public string Title { get; set; } = "";
     public string Assignee { get; set; } = "";
+    public string ProjectName { get; set; }
     public DateOnly DueDate { get; set; }
     public string Priority { get; set; } = "Medium";
     public string Status { get; set; } = "In Progress";
