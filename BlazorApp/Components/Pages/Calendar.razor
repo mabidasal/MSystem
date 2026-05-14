@@ -20,9 +20,10 @@
 
 <div class="card">
     <div class="cal-grid-header">
-        @foreach (var d in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+        @foreach (var (d, i) in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }.Select((d, i) => (d, i)))
         {
-            <div class="cal-day-head">@d</div>
+            var isWeekendHead = i == 0 || i == 6;
+            <div class="cal-day-head @(isWeekendHead ? "cal-day-head-weekend" : "")">@d</div>
         }
     </div>
     <div class="cal-grid">
@@ -34,22 +35,49 @@
             }
             else
             {
-                var leaves = GetLeavesForDay(cell.Value);
+                var isWeekend = cell.Value.DayOfWeek == DayOfWeek.Saturday || cell.Value.DayOfWeek == DayOfWeek.Sunday;
+                var isMeeting = cell.Value.DayOfWeek == DayOfWeek.Thursday || cell.Value.DayOfWeek == DayOfWeek.Friday;
                 var isToday = cell.Value == DateOnly.FromDateTime(DateTime.Today);
-                <div class="cal-cell @(isToday ? "cal-cell-today" : "")">
-                    <span class="cal-date @(isToday ? "cal-date-today" : "")">@cell.Value.Day</span>
-                    @if (leaves.Any())
+                var leaves = isWeekend ? new List<LeaveRecord>() : GetLeavesForDay(cell.Value);
+
+                <div class="cal-cell
+                    @(isToday ? "cal-cell-today" : "")
+                    @(isWeekend ? "cal-cell-weekend" : "")
+                    @(isMeeting ? "cal-cell-meeting" : "")">
+
+                    <span class="cal-date @(isToday ? "cal-date-today" : "")">
+                        @cell.Value.Day
+                    </span>
+
+                    @if (isWeekend)
                     {
-                        <div class="cal-dots">
-                            @foreach (var lv in leaves.Take(4))
-                            {
-                                var idx = DataService.Developers.FindIndex(d => d.Name == lv.DeveloperName);
-                                <div class="cal-dot dot-@(idx % 8)" title="@lv.DeveloperName: @lv.LeaveType"></div>
-                            }
-                        </div>
-                        @if (leaves.Count > 4)
+                        <span class="cal-off">Day Off</span>
+                    }
+                    else
+                    {
+                        @if (isMeeting)
                         {
-                            <span class="cal-more">+@(leaves.Count - 4)</span>
+                            <div class="cal-meeting-chip">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                                    <path d="M17 20h5v-2a4 4 0 00-4-4M9 20H4v-2a4 4 0 014-4m4-4a4 4 0 100-8 4 4 0 000 8z" />
+                                </svg>
+                                @(cell.Value.DayOfWeek == DayOfWeek.Thursday ? "Tactical Thursday" : "Feedback Friday")
+                            </div>
+                        }
+
+                        @if (leaves.Any())
+                        {
+                            <div class="cal-dots">
+                                @foreach (var lv in leaves.Take(4))
+                                {
+                                    var idx = DataService.Developers.FindIndex(d => d.Name == lv.DeveloperName);
+                                    <div class="cal-dot dot-@(idx % 8)" title="@lv.DeveloperName: @lv.LeaveType"></div>
+                                }
+                            </div>
+                            @if (leaves.Count > 4)
+                            {
+                                <span class="cal-more">+@(leaves.Count - 4)</span>
+                            }
                         }
                     }
                 </div>
@@ -62,7 +90,8 @@
 <div class="card" style="margin-top:1rem">
     <div class="card-header">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
-            <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4l3 3" />
         </svg>
         <span>Legend — Who's on leave this month</span>
     </div>
@@ -79,6 +108,21 @@
                 </div>
             }
         }
+
+        <div class="legend-item">
+            <div class="legend-meeting-dot dot-thursday"></div>
+            <span>Tactical Thursday</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-meeting-dot dot-friday"></div>
+            <span>Feedback Friday</span>
+        </div>
+
+        <!-- Day off legend -->
+        <div class="legend-item">
+            <div class="legend-off-dot"></div>
+            <span>Day Off (Sat & Sun)</span>
+        </div>
     </div>
 </div>
 
@@ -104,3 +148,55 @@
     private void PrevMonth() => CurrentDate = CurrentDate.AddMonths(-1);
     private void NextMonth() => CurrentDate = CurrentDate.AddMonths(1);
 }
+
+<style>
+    .cal-day-head-weekend {
+        color: #d1d5db;
+    }
+
+    .cal-cell-weekend {
+        background: #f9fafb;
+        opacity: 0.6;
+    }
+
+    .cal-cell-meeting {
+        background: #fffbeb;
+        border-color: #f59e0b;
+    }
+
+    .cal-off {
+        display: block;
+        font-size: 11px;
+        color: #d1d5db;
+        font-weight: 500;
+        margin-top: 4px;
+    }
+
+    .cal-meeting-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: #f59e0b;
+        color: white;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 3px 7px;
+        border-radius: 999px;
+        margin-top: 4px;
+        margin-bottom: 4px;
+    }
+
+    .legend-meeting-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        background: #f59e0b;
+    }
+
+    .legend-off-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        background: #e5e7eb;
+    }
+</style>

@@ -17,6 +17,7 @@
 </div>
 
 <!-- Leave Calendar -->
+<!-- Leave Calendar -->
 <div class="card mb-4">
     <div class="card-header">
         <svg viewBox="0 0 24 24"
@@ -32,19 +33,34 @@
     </div>
 
     <div class="calendar-grid">
-        @for (int i = 0; i < 30; i++)
-        {
-            var day = DateOnly.FromDateTime(DateTime.Today.AddDays(i));
+        @{
+            var mayStart = new DateOnly(DateTime.Today.Year, 5, 1);
+            var mayEnd = new DateOnly(DateTime.Today.Year, 5, 31);
+        }
 
+        <!-- Day of week headers -->
+        @foreach (var dayName in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+        {
+            <div class="calendar-dow-header">@dayName</div>
+        }
+
+        <!-- Empty cells to offset May 1 to the correct day column -->
+        @for (int offset = 0; offset < (int)mayStart.DayOfWeek; offset++)
+        {
+            <div class="calendar-day calendar-day-empty"></div>
+        }
+
+        @for (var day = mayStart; day <= mayEnd; day = day.AddDays(1))
+        {
             var dayLeaves = DataService.Leaves
-                .Where(l => l.StartDate <= day &&
-                            l.EndDate >= day)
+                .Where(l => l.StartDate <= day && l.EndDate >= day)
                 .ToList();
 
-            <div class="calendar-day">
+            var isToday = day == DateOnly.FromDateTime(DateTime.Today);
 
-                <div class="calendar-date">
-                    @day.ToString("MMM d")
+            <div class="calendar-day @(isToday ? "calendar-day-today" : "")">
+                <div class="calendar-date @(isToday ? "calendar-date-today" : "")">
+                    @day.Day
                 </div>
 
                 @if (dayLeaves.Any())
@@ -58,9 +74,7 @@
                 }
                 else
                 {
-                    <div class="empty-day">
-                        Available
-                    </div>
+                    <div class="empty-day">Available</div>
                 }
             </div>
         }
@@ -71,7 +85,6 @@
             <span class="legend-color vacation"></span>
             Vacation
         </div>
-
         <div class="legend-item">
             <span class="legend-color sick"></span>
             Sick Leave
@@ -260,6 +273,30 @@
         height: 12px;
         border-radius: 999px;
     }
+
+    .calendar-day-today {
+        border: 2px solid #6366f1;
+        background: #eef2ff;
+    }
+
+    .calendar-date-today {
+        color: #6366f1;
+    }
+    .calendar-dow-header {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    padding: 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.calendar-day-empty {
+    border: none;
+    background: transparent;
+    min-height: 140px;
+}
 </style>
 
 @code {
