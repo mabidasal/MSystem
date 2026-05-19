@@ -1,7 +1,7 @@
 @page "/"
 @layout MainLayout
 @inject WorkloadDataService DataService
-@rendermode InteractiveServer  
+@rendermode InteractiveServer
 @using BlazorApp.Models
 @using BlazorApp.Services
 
@@ -14,7 +14,9 @@
     </div>
     <label class="upload-btn" title="Upload Excel file">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
         Upload Excel
         <InputFile OnChange="HandleFileUpload" accept=".xlsx,.xls" style="display:none" />
@@ -89,7 +91,500 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     EXPANDABLE: Availability Calendar
+     ═══════════════════════════════════════════════ -->
+<div class="accordion-card @(showAvailCalendar ? "accordion-open" : "")">
+    <button class="accordion-header" @onclick="ToggleAvailCalendar">
+        <div class="accordion-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span>Availability Calendar</span>
+            <span class="accordion-sub">Team leave and availability at a glance</span>
+        </div>
+        <div class="accordion-right">
+            @if (showAvailCalendar)
+            {
+                <span class="accordion-badge accordion-badge-open">Hide</span>
+            }
+            else
+            {
+                <span class="accordion-badge">Show</span>
+            }
+            <svg class="accordion-chevron @(showAvailCalendar ? "chevron-up" : "")"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <polyline points="6 9 12 15 18 9" />
+            </svg>
+        </div>
+    </button>
+
+    @if (showAvailCalendar)
+    {
+        <div class="accordion-body">
+            <!-- Month nav -->
+            <div class="cal-nav-inline">
+                <button class="btn-ghost" @onclick="AvailPrevMonth">&#8249;</button>
+                <span class="cal-month-label">@AvailDate.ToString("MMMM yyyy")</span>
+                <button class="btn-ghost" @onclick="AvailNextMonth">&#8250;</button>
+            </div>
+
+            <div class="cal-grid-header">
+                @foreach (var (d, i) in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }.Select((d, i) => (d, i)))
+                {
+                    <div class="cal-day-head @(i == 0 || i == 6 ? "cal-day-head-weekend" : "")">@d</div>
+                }
+            </div>
+            <div class="cal-grid">
+                @foreach (var cell in GetCalendarCells(AvailDate))
+                {
+                    if (cell == null)
+                    {
+                        <div class="cal-cell cal-cell-empty"></div>
+                    }
+                    else
+                    {
+                        var isWeekend = cell.Value.DayOfWeek == DayOfWeek.Saturday || cell.Value.DayOfWeek == DayOfWeek.Sunday;
+                        var isMeeting = cell.Value.DayOfWeek == DayOfWeek.Thursday || cell.Value.DayOfWeek == DayOfWeek.Friday;
+                        var isToday = cell.Value == DateOnly.FromDateTime(DateTime.Today);
+                        var leaves = isWeekend ? new List<LeaveRecord>() : GetLeavesForDay(cell.Value);
+
+                        <div class="cal-cell
+                            @(isToday ? "cal-cell-today" : "")
+                            @(isWeekend ? "cal-cell-weekend" : "")
+                            @(isMeeting ? "cal-cell-meeting" : "")">
+
+                            <span class="cal-date @(isToday ? "cal-date-today" : "")">@cell.Value.Day</span>
+
+                            @if (isWeekend)
+                            {
+                                <span class="cal-off">Day Off</span>
+                            }
+                            else
+                            {
+                                @if (isMeeting)
+                                {
+                                    <div class="cal-meeting-chip">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                                            <path d="M17 20h5v-2a4 4 0 00-4-4M9 20H4v-2a4 4 0 014-4m4-4a4 4 0 100-8 4 4 0 000 8z" />
+                                        </svg>
+                                        @(cell.Value.DayOfWeek == DayOfWeek.Thursday ? "Tactical Thursday" : "Feedback Friday")
+                                    </div>
+                                }
+                                @if (leaves.Any())
+                                {
+                                    <div class="cal-dots">
+                                        @foreach (var lv in leaves.Take(4))
+                                        {
+                                            var idx = DataService.Developers.FindIndex(d => d.Name == lv.DeveloperName);
+                                            <div class="cal-dot dot-@(idx % 8)" title="@lv.DeveloperName: @lv.LeaveType"></div>
+                                        }
+                                    </div>
+                                    @if (leaves.Count > 4)
+                                    {
+                                        <span class="cal-more">+@(leaves.Count - 4)</span>
+                                    }
+                                }
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- Legend -->
+            <div class="legend-inline">
+                <div class="legend-title">Who's on leave this month</div>
+                <div class="legend-grid">
+                    @foreach (var (dev, idx) in DataService.Developers.Select((d, i) => (d, i)))
+                    {
+                        var hasLeave = DataService.Leaves.Any(l => l.DeveloperName == dev.Name &&
+                            (l.StartDate.Month == AvailDate.Month || l.EndDate.Month == AvailDate.Month));
+                        if (hasLeave)
+                        {
+                            <div class="legend-item">
+                                <div class="legend-dot dot-@(idx % 8)"></div>
+                                <span>@dev.Name</span>
+                            </div>
+                        }
+                    }
+                    <div class="legend-item">
+                        <div class="legend-meeting-dot"></div>
+                        <span>Tactical Thu / Feedback Fri</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-off-dot"></div>
+                        <span>Day Off (Sat &amp; Sun)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     EXPANDABLE: Leave Calendar
+     ═══════════════════════════════════════════════ -->
+<div class="accordion-card @(showLeaveCalendar ? "accordion-open" : "")">
+    <button class="accordion-header" @onclick="ToggleLeaveCalendar">
+        <div class="accordion-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+            </svg>
+            <span>Leave Calendar</span>
+            <span class="accordion-sub">All scheduled leaves for the team</span>
+        </div>
+        <div class="accordion-right">
+            @if (showLeaveCalendar)
+            {
+                <span class="accordion-badge accordion-badge-open">Hide</span>
+            }
+            else
+            {
+                <span class="accordion-badge">Show</span>
+            }
+            <svg class="accordion-chevron @(showLeaveCalendar ? "chevron-up" : "")"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <polyline points="6 9 12 15 18 9" />
+            </svg>
+        </div>
+    </button>
+
+    @if (showLeaveCalendar)
+    {
+        <div class="accordion-body">
+            <!-- Month nav -->
+            <div class="cal-nav-inline">
+                <button class="btn-ghost" @onclick="LeavePrevMonth">&#8249;</button>
+                <span class="cal-month-label">@LeaveDate.ToString("MMMM yyyy")</span>
+                <button class="btn-ghost" @onclick="LeaveNextMonth">&#8250;</button>
+            </div>
+
+            @if (!DataService.Leaves.Any())
+            {
+                <div class="empty-state">No leave records found. Upload an Excel file to populate data.</div>
+            }
+            else
+            {
+                <!-- Leave rows grouped by developer -->
+                <div class="leave-table">
+                    <div class="leave-table-head">
+                        <div>Member</div>
+                        <div>Leave Type</div>
+                        <div>From</div>
+                        <div>To</div>
+                        <div>Days</div>
+                        <div>Status</div>
+                    </div>
+                    @foreach (var lv in GetLeavesForMonth(LeaveDate))
+                    {
+                        var devIdx = DataService.Developers.FindIndex(d => d.Name == lv.DeveloperName);
+                        var days = (lv.EndDate.ToDateTime(TimeOnly.MinValue) - lv.StartDate.ToDateTime(TimeOnly.MinValue)).Days + 1;
+                        var isActive = lv.IsActive;
+                        <div class="leave-row">
+                            <div class="leave-member">
+                                <div class="avatar avatar-sm avatar-@(devIdx % 8)">
+                                    @(DataService.Developers.FirstOrDefault(d => d.Name == lv.DeveloperName)?.AvatarInitials ?? "?")
+                                </div>
+                                <span>@lv.DeveloperName</span>
+                            </div>
+                            <div>
+                                <span class="leave-type-chip">@lv.LeaveType</span>
+                            </div>
+                            <div class="leave-date">@lv.StartDate.ToString("MMM d")</div>
+                            <div class="leave-date">@lv.EndDate.ToString("MMM d, yyyy")</div>
+                            <div class="leave-days">@days d</div>
+                            <div>
+                                @if (isActive)
+                                {
+                                    <span class="badge badge-leave">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-avail">Upcoming</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (!GetLeavesForMonth(LeaveDate).Any())
+                {
+                    <div class="empty-state">No leaves scheduled for @LeaveDate.ToString("MMMM yyyy").</div>
+                }
+            }
+        </div>
+    }
+</div>
+
+<style>
+    /* ── Accordion card ─────────────────────────────── */
+    .accordion-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        margin-top: 1rem;
+        overflow: hidden;
+        transition: box-shadow 0.2s;
+    }
+
+        .accordion-card.accordion-open {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+        }
+
+    .accordion-header {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        gap: 1rem;
+        transition: background 0.15s;
+    }
+
+        .accordion-header:hover {
+            background: #f9fafb;
+        }
+
+    .accordion-title {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #111827;
+    }
+
+        .accordion-title svg {
+            color: #6b7280;
+            flex-shrink: 0;
+        }
+
+    .accordion-sub {
+        font-weight: 400;
+        font-size: 0.78rem;
+        color: #9ca3af;
+        margin-left: 0.25rem;
+    }
+
+    .accordion-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .accordion-badge {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: #6b7280;
+        border: 1px solid #e5e7eb;
+        letter-spacing: 0.02em;
+    }
+
+    .accordion-badge-open {
+        background: #eff6ff;
+        color: #3b82f6;
+        border-color: #bfdbfe;
+    }
+
+    .accordion-chevron {
+        color: #9ca3af;
+        transition: transform 0.25s ease;
+    }
+
+        .accordion-chevron.chevron-up {
+            transform: rotate(180deg);
+        }
+
+    .accordion-body {
+        padding: 0 1.25rem 1.25rem;
+        border-top: 1px solid #f3f4f6;
+        animation: accordionDown 0.2s ease;
+    }
+
+    @@keyframes accordionDown {
+        from {
+            opacity: 0;
+            transform: translateY(-6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* ── Inline calendar nav ────────────────────────── */
+    .cal-nav-inline {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.85rem 0 0.75rem;
+    }
+
+    /* ── Calendar grid (reuses existing styles) ──────── */
+    .cal-day-head-weekend {
+        color: #d1d5db;
+    }
+
+    .cal-cell-weekend {
+        background: #f9fafb;
+        opacity: 0.6;
+    }
+
+    .cal-cell-meeting {
+        background: #fffbeb;
+        border-color: #f59e0b;
+    }
+
+    .cal-off {
+        display: block;
+        font-size: 11px;
+        color: #d1d5db;
+        font-weight: 500;
+        margin-top: 4px;
+    }
+
+    .cal-meeting-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: #f59e0b;
+        color: white;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 3px 7px;
+        border-radius: 999px;
+        margin-top: 4px;
+        margin-bottom: 4px;
+    }
+
+    .legend-meeting-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        background: #f59e0b;
+    }
+
+    .legend-off-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        background: #e5e7eb;
+    }
+
+    /* ── Inline legend ──────────────────────────────── */
+    .legend-inline {
+        margin-top: 1rem;
+        padding-top: 0.85rem;
+        border-top: 1px solid #f3f4f6;
+    }
+
+    .legend-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.6rem;
+    }
+
+    /* ── Leave table ────────────────────────────────── */
+    .leave-table {
+        width: 100%;
+        margin-top: 0.75rem;
+        border: 1px solid #f3f4f6;
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 0.83rem;
+    }
+
+    .leave-table-head {
+        display: grid;
+        grid-template-columns: 1.8fr 1.2fr 1fr 1.3fr 0.6fr 0.8fr;
+        background: #f9fafb;
+        padding: 0.55rem 1rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 1px solid #f3f4f6;
+        gap: 0.5rem;
+    }
+
+    .leave-row {
+        display: grid;
+        grid-template-columns: 1.8fr 1.2fr 1fr 1.3fr 0.6fr 0.8fr;
+        padding: 0.6rem 1rem;
+        align-items: center;
+        gap: 0.5rem;
+        border-bottom: 1px solid #f9fafb;
+        transition: background 0.12s;
+    }
+
+        .leave-row:last-child {
+            border-bottom: none;
+        }
+
+        .leave-row:hover {
+            background: #fafafa;
+        }
+
+    .leave-member {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+        color: #111827;
+    }
+
+    .avatar-sm {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 0.62rem !important;
+    }
+
+    .leave-type-chip {
+        display: inline-block;
+        padding: 2px 8px;
+        background: #eff6ff;
+        color: #3b82f6;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+
+    .leave-date {
+        color: #374151;
+    }
+
+    .leave-days {
+        color: #6b7280;
+        font-weight: 600;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #9ca3af;
+        font-size: 0.85rem;
+    }
+</style>
+
 @code {
+    // ── Workload ──────────────────────────────────────
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
         var file = e.File;
@@ -102,4 +597,44 @@
     private string CapacityBarClass(int pct) => pct >= 90 ? "cap-bar-danger" : pct >= 70 ? "cap-bar-warn" : "cap-bar-ok";
     private string CapacityBadgeClass(int pct) => pct >= 90 ? "badge-full" : pct >= 70 ? "badge-busy" : "badge-avail";
     private string CapacityLabel(int pct) => pct >= 90 ? "Full" : pct >= 70 ? "Busy" : "Available";
+
+    // ── Accordion state ───────────────────────────────
+    private bool showAvailCalendar = false;
+    private bool showLeaveCalendar = false;
+
+    private void ToggleAvailCalendar() => showAvailCalendar = !showAvailCalendar;
+    private void ToggleLeaveCalendar() => showLeaveCalendar = !showLeaveCalendar;
+
+    // ── Availability calendar ─────────────────────────
+    private DateOnly AvailDate = DateOnly.FromDateTime(DateTime.Today);
+
+    private void AvailPrevMonth() => AvailDate = AvailDate.AddMonths(-1);
+    private void AvailNextMonth() => AvailDate = AvailDate.AddMonths(1);
+
+    // ── Leave calendar ────────────────────────────────
+    private DateOnly LeaveDate = DateOnly.FromDateTime(DateTime.Today);
+
+    private void LeavePrevMonth() => LeaveDate = LeaveDate.AddMonths(-1);
+    private void LeaveNextMonth() => LeaveDate = LeaveDate.AddMonths(1);
+
+    // ── Shared helpers ────────────────────────────────
+    private List<DateOnly?> GetCalendarCells(DateOnly date)
+    {
+        var cells = new List<DateOnly?>();
+        var first = new DateOnly(date.Year, date.Month, 1);
+        var daysInMonth = DateTime.DaysInMonth(date.Year, date.Month);
+        for (int i = 0; i < (int)first.DayOfWeek; i++) cells.Add(null);
+        for (int d = 1; d <= daysInMonth; d++) cells.Add(new DateOnly(date.Year, date.Month, d));
+        return cells;
+    }
+
+    private List<LeaveRecord> GetLeavesForDay(DateOnly day) =>
+        DataService.Leaves.Where(l => day >= l.StartDate && day <= l.EndDate).ToList();
+
+    private List<LeaveRecord> GetLeavesForMonth(DateOnly date) =>
+        DataService.Leaves
+            .Where(l => l.StartDate.Month == date.Month && l.StartDate.Year == date.Year
+                     || l.EndDate.Month == date.Month && l.EndDate.Year == date.Year)
+            .OrderBy(l => l.StartDate)
+            .ToList();
 }
