@@ -1,95 +1,244 @@
-﻿using BlazorApp.Models;
+﻿using OfficeOpenXml;
+using BlazorApp.Models;
 
 namespace BlazorApp.Services;
 
 public class WorkloadDataService
 {
+    // ── Data collections (UI binds to these) ─────────
     public List<Developer> Developers { get; private set; } = new();
-    public List<LeaveRecord> Leaves { get; private set; } = new();
     public List<TaskItem> Tasks { get; private set; } = new();
-    public string? LoadedFileName { get; private set; }
+    public List<LeaveRecord> Leaves { get; private set; } = new();
 
-    public WorkloadDataService()
-    {
-        LoadSampleData();
-    }
-
-    public void LoadSampleData()
-    {
-        LoadedFileName = "Sample Data";
-
-        Developers = new()
-    {
-        new() { Name = "Marlou John Aquino", Role = "Developer", CapacityPercent = 80, TaskCount = 4 },
-        new() { Name = "Marcus Dacaymat",    Role = "Developer", CapacityPercent = 50, TaskCount = 2 },
-        new() { Name = "Elijah Payok",       Role = "Developer", CapacityPercent = 95, TaskCount = 6 },
-        new() { Name = "Polo Dacaymat",      Role = "Developer", CapacityPercent = 30, TaskCount = 1 },
-        new() { Name = "Jerrick Decena",     Role = "Developer", CapacityPercent = 70, TaskCount = 3 },
-        new() { Name = "Khen Albarico",      Role = "Developer", CapacityPercent = 70, TaskCount = 3 },
-        new() { Name = "Luis Flores",        Role = "Developer", CapacityPercent = 70, TaskCount = 3 },
-    };
-
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        Leaves = new()
-    {
-        // Active today — Marlou is currently on leave (started yesterday, ends tomorrow)
-        new() { DeveloperName = "Marlou John Aquino", StartDate = today.AddDays(-1), EndDate = today.AddDays(1),  LeaveType = "Vacation"  },
-
-        // Upcoming leaves
-        new() { DeveloperName = "Elijah Payok",       StartDate = today.AddDays(3),  EndDate = today.AddDays(5),  LeaveType = "Sick Leave" },
-        new() { DeveloperName = "Jerrick Decena",     StartDate = today.AddDays(7),  EndDate = today.AddDays(11), LeaveType = "Vacation"   },
-
-        // Past leave
-        new() { DeveloperName = "Marcus Dacaymat",    StartDate = today.AddDays(-3), EndDate = today.AddDays(-2), LeaveType = "Personal"   },
-    };
-
-        Tasks = new()
-    {
-        new() { Title = "Login page redesign",   Assignee = "Marlou John Aquino", ProjectName = "Elite Service Bus",  DueDate = today.AddDays(5),  Priority = "High",   Status = "In Progress" },
-        new() { Title = "API endpoint refactor", Assignee = "Marcus Dacaymat",    ProjectName = "Zoho",               DueDate = today.AddDays(7),  Priority = "Medium", Status = "In Progress" },
-        new() { Title = "Database migration",    Assignee = "Elijah Payok",       ProjectName = "ChromeRiver",        DueDate = today.AddDays(3),  Priority = "High",   Status = "In Progress" },
-        new() { Title = "CI/CD pipeline fix",    Assignee = "Polo Dacaymat",      ProjectName = "Proceedings AT",     DueDate = today.AddDays(9),  Priority = "Low",    Status = "To Do"       },
-        new() { Title = "Unit test coverage",    Assignee = "Jerrick Decena",     ProjectName = "Raise",              DueDate = today.AddDays(6),  Priority = "Medium", Status = "In Progress" },
-        new() { Title = "Auth token refresh",    Assignee = "Khen Albarico",      ProjectName = "TM Monitoring",      DueDate = today.AddDays(4),  Priority = "High",   Status = "To Do"       },
-        new() { Title = "Mobile nav component",  Assignee = "Luis Flores",        ProjectName = "Chorus",             DueDate = today.AddDays(8),  Priority = "Medium", Status = "Done"        },
-        new() { Title = "Docker compose update", Assignee = "Polo Dacaymat",      ProjectName = "Proceedings AT",     DueDate = today.AddDays(10), Priority = "Low",    Status = "To Do"       },
-    };
-    }
-
-    public async Task LoadFromExcelAsync(Stream stream, string fileName)
-    {
-        LoadedFileName = fileName;
-        await Task.CompletedTask;
-    }
-
-    // ---- Aggregates ----
+    // ── Computed metrics ──────────────────────────────
     public int TotalDevelopers => Developers.Count;
     public int OnLeaveToday => Leaves.Count(l => l.IsActive);
-    public int AverageCapacity => Developers.Any() ? (int)Developers.Average(d => d.CapacityPercent) : 0;
-    public int HighPriorityTasks => Tasks.Count(t => t.Priority == "High");
+    public int AverageCapacity => Developers.Any()
+                                        ? (int)Developers.Average(d => d.CapacityPercent) : 0;
     public int TotalTasks => Tasks.Count;
+    public int HighPriorityTasks => Tasks.Count(t => t.Priority == "High");
 
-    // ---- Leave Helpers ----
+    // ── Upload state ──────────────────────────────────
+    public bool IsLoading { get; private set; }
+    public bool HasData { get; private set; }
+    public string? LastFileName { get; private set; }
+    public string? ErrorMessage { get; private set; }
 
-    /// <summary>Returns the active leave record for a developer, or null if not on leave today.</summary>
-    public LeaveRecord? GetActiveLeave(string developerName)
-        => Leaves.FirstOrDefault(l => l.DeveloperName == developerName && l.IsActive);
-
-    /// <summary>Returns upcoming leaves starting within the next 7 days for a developer.</summary>
-    public IEnumerable<LeaveRecord> GetUpcomingLeaves(string developerName)
+    // ── Main loader ───────────────────────────────────
+    public async Task LoadFromExcelAsync(Stream stream, string fileName)
     {
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        return Leaves.Where(l =>
-            l.DeveloperName == developerName &&
-            l.StartDate > today &&
-            l.StartDate <= today.AddDays(7));
+        IsLoading = true;
+        ErrorMessage = null;
+
+        try
+        {
+            // EPPlus 5+ requires this for non-commercial use
+            ExcelPackage.License.SetNonCommercialPersonal("MSystem");
+
+            // Copy to memory first — EPPlus needs a seekable stream
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            using var package = new ExcelPackage(ms);
+
+            Developers.Clear();
+            Tasks.Clear();
+            Leaves.Clear();
+
+            ReadDevelopers(package);
+            ReadTasks(package);
+            ReadLeaves(package);
+
+            // Auto-compute TaskCount from Tasks list if sheet didn't have it
+            foreach (var dev in Developers)
+            {
+                if (dev.TaskCount == 0)
+                    dev.TaskCount = Tasks.Count(t => t.Assignee == dev.Name);
+            }
+
+            // Auto-compute CapacityPercent if missing (tasks × 20, capped at 100)
+            foreach (var dev in Developers)
+            {
+                if (dev.CapacityPercent == 0 && dev.TaskCount > 0)
+                    dev.CapacityPercent = Math.Min(dev.TaskCount * 20, 100);
+            }
+
+            HasData = true;
+            LastFileName = fileName;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to read \"{fileName}\": {ex.Message}";
+            HasData = false;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
-    /// <summary>Returns all developers who are on leave today.</summary>
-    public IEnumerable<Developer> DevelopersOnLeaveToday()
-        => Developers.Where(d => GetActiveLeave(d.Name) != null);
+    // ── Sheet readers ─────────────────────────────────
 
-    /// <summary>Effective capacity: 0 if on leave today, otherwise normal CapacityPercent.</summary>
-    public int EffectiveCapacity(Developer dev)
-        => GetActiveLeave(dev.Name) != null ? 0 : dev.CapacityPercent;
+    private void ReadDevelopers(ExcelPackage package)
+    {
+        // Match by sheet name first, fall back to first sheet
+        var ws = package.Workbook.Worksheets["Developers"]
+              ?? package.Workbook.Worksheets["developers"]
+              ?? package.Workbook.Worksheets[0];
+
+        if (ws?.Dimension == null) return;
+
+        // Detect column positions from header row (case-insensitive)
+        var headers = GetHeaders(ws);
+
+        int colName = ColIndex(headers, "name") ?? 1;
+        int colRole = ColIndex(headers, "role") ?? 2;
+        int colCapacity = ColIndex(headers, "capacitypercent",
+                                            "capacity", "cap") ?? 3;
+        int colTasks = ColIndex(headers, "taskcount",
+                                            "tasks") ?? 4;
+
+        for (int row = 2; row <= ws.Dimension.End.Row; row++)
+        {
+            var name = ws.Cells[row, colName].Text.Trim();
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            Developers.Add(new Developer
+            {
+                Name = name,
+                Role = ws.Cells[row, colRole].Text.Trim(),
+                CapacityPercent = ParseInt(ws.Cells[row, colCapacity].Text),
+                TaskCount = ParseInt(ws.Cells[row, colTasks].Text),
+            });
+        }
+    }
+
+    private void ReadTasks(ExcelPackage package)
+    {
+        var ws = package.Workbook.Worksheets["Tasks"]
+              ?? package.Workbook.Worksheets["tasks"]
+              ?? (package.Workbook.Worksheets.Count > 1
+                      ? package.Workbook.Worksheets[1] : null);
+
+        if (ws?.Dimension == null) return;
+
+        var headers = GetHeaders(ws);
+
+        int colTitle = ColIndex(headers, "title", "task", "name") ?? 1;
+        int colAssignee = ColIndex(headers, "assignee", "assigned to",
+                                            "developer") ?? 2;
+        int colProject = ColIndex(headers, "projectname", "project") ?? 3;
+        int colDue = ColIndex(headers, "duedate", "due date", "due") ?? 4;
+        int colPriority = ColIndex(headers, "priority") ?? 5;
+        int colStatus = ColIndex(headers, "status") ?? 6;
+
+        for (int row = 2; row <= ws.Dimension.End.Row; row++)
+        {
+            var title = ws.Cells[row, colTitle].Text.Trim();
+            if (string.IsNullOrWhiteSpace(title)) continue;
+
+            Tasks.Add(new TaskItem
+            {
+                Title = title,
+                Assignee = ws.Cells[row, colAssignee].Text.Trim(),
+                ProjectName = ws.Cells[row, colProject].Text.Trim(),
+                DueDate = ParseDate(ws.Cells[row, colDue]),
+                Priority = Normalise(ws.Cells[row, colPriority].Text, "Medium"),
+                Status = Normalise(ws.Cells[row, colStatus].Text, "In Progress"),
+            });
+        }
+    }
+
+    private void ReadLeaves(ExcelPackage package)
+    {
+        var ws = package.Workbook.Worksheets["Leaves"]
+              ?? package.Workbook.Worksheets["Leave"]
+              ?? package.Workbook.Worksheets["leaves"]
+              ?? (package.Workbook.Worksheets.Count > 2
+                      ? package.Workbook.Worksheets[2] : null);
+
+        if (ws?.Dimension == null) return;
+
+        var headers = GetHeaders(ws);
+
+        int colDev = ColIndex(headers, "developername", "developer",
+                                          "name", "member") ?? 1;
+        int colType = ColIndex(headers, "leavetype", "leave type", "type") ?? 2;
+        int colStart = ColIndex(headers, "startdate", "start date", "from",
+                                          "start") ?? 3;
+        int colEnd = ColIndex(headers, "enddate", "end date", "to", "end") ?? 4;
+
+        for (int row = 2; row <= ws.Dimension.End.Row; row++)
+        {
+            var dev = ws.Cells[row, colDev].Text.Trim();
+            if (string.IsNullOrWhiteSpace(dev)) continue;
+
+            var leaveType = Normalise(ws.Cells[row, colType].Text, "Vacation");
+
+            Leaves.Add(new LeaveRecord
+            {
+                DeveloperName = dev,
+                LeaveType = leaveType,
+                StartDate = ParseDate(ws.Cells[row, colStart]),
+                EndDate = ParseDate(ws.Cells[row, colEnd]),
+            });
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────
+
+    /// <summary>Read row 1 into a dictionary of (normalised header → 1-based column index).</summary>
+    private static Dictionary<string, int> GetHeaders(ExcelWorksheet ws)
+    {
+        var dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (ws.Dimension == null) return dict;
+
+        for (int col = 1; col <= ws.Dimension.End.Column; col++)
+        {
+            var header = ws.Cells[1, col].Text.Trim()
+                           .ToLowerInvariant()
+                           .Replace(" ", "");
+            if (!string.IsNullOrEmpty(header) && !dict.ContainsKey(header))
+                dict[header] = col;
+        }
+        return dict;
+    }
+
+    /// <summary>Find the first matching alias in the header dict.</summary>
+    private static int? ColIndex(Dictionary<string, int> headers, params string[] aliases)
+    {
+        foreach (var alias in aliases)
+        {
+            var key = alias.ToLowerInvariant().Replace(" ", "");
+            if (headers.TryGetValue(key, out int col)) return col;
+        }
+        return null;
+    }
+
+    private static int ParseInt(string text)
+        => int.TryParse(text.Replace("%", "").Trim(), out var v) ? v : 0;
+
+    /// <summary>Parse a date cell — handles both text and numeric (Excel serial) dates.</summary>
+    private static DateOnly ParseDate(ExcelRange cell)
+    {
+        // EPPlus can expose the underlying DateTime for date-formatted cells
+        if (cell.Value is DateTime dt)
+            return DateOnly.FromDateTime(dt);
+
+        if (cell.Value is double d)
+            return DateOnly.FromDateTime(DateTime.FromOADate(d));
+
+        if (DateOnly.TryParse(cell.Text.Trim(), out var parsed))
+            return parsed;
+
+        return DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    /// <summary>Return the trimmed value if non-empty, otherwise the fallback.</summary>
+    private static string Normalise(string text, string fallback)
+    {
+        var t = text.Trim();
+        return string.IsNullOrEmpty(t) ? fallback : t;
+    }
 }

@@ -812,11 +812,18 @@
 
 @code {
     // ── File upload ───────────────────────────────────
+  private string? _uploadError;
+
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
+        _uploadError = null;
         var file = e.File;
         using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
         await DataService.LoadFromExcelAsync(stream, file.Name);
+
+        if (DataService.ErrorMessage != null)
+            _uploadError = DataService.ErrorMessage;
+
         StateHasChanged();
     }
 
