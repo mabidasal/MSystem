@@ -45,50 +45,141 @@
     </div>
 </div>
 
-<!-- Developer workload list -->
-<div class="card">
-    <div class="card-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-        </svg>
-        <span>F7 Workload</span>
-    </div>
-    <div class="dev-list">
-        @foreach (var (dev, idx) in DataService.Developers.Select((d, i) => (d, i)))
-        {
-            var onLeave = DataService.Leaves.Any(l => l.DeveloperName == dev.Name && l.IsActive);
-            var project = DataService.Tasks.FirstOrDefault(t => t.Assignee == dev.Name)?.ProjectName;
-            <div class="dev-row">
-                <div class="avatar avatar-@(idx % 8)">@dev.AvatarInitials</div>
-                <div class="dev-info">
-                    <div class="dev-name">@dev.Name</div>
-                    <div class="dev-role">@dev.Role</div>
-                    @if (!string.IsNullOrEmpty(project))
+<!-- ═══════════════════════════════════════════════
+     EXPANDABLE: Developer Workload
+     ═══════════════════════════════════════════════ -->
+<div class="accordion-card @(showWorkload ? "accordion-open" : "")">
+    <button class="accordion-header" @onclick="ToggleWorkload">
+        <div class="accordion-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+            </svg>
+            <span>F7 Workload</span>
+            <span class="accordion-sub">Capacity and task load per developer</span>
+        </div>
+        <div class="accordion-right">
+            <span class="accordion-badge @(showWorkload ? "accordion-badge-open" : "")">
+                @(showWorkload ? "Hide" : "Show")
+            </span>
+            <svg class="accordion-chevron @(showWorkload ? "chevron-up" : "")"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <polyline points="6 9 12 15 18 9" />
+            </svg>
+        </div>
+    </button>
+    @if (showWorkload)
+    {
+        <div class="accordion-body">
+            <div class="dev-list">
+                @foreach (var (dev, idx) in DataService.Developers.Select((d, i) => (d, i)))
+                {
+                    var onLeave = DataService.Leaves.Any(l => l.DeveloperName == dev.Name && l.IsActive);
+                    var project = DataService.Tasks.FirstOrDefault(t => t.Assignee == dev.Name)?.ProjectName;
+                    <div class="dev-row">
+                        <div class="avatar avatar-@(idx % 8)">@dev.AvatarInitials</div>
+                        <div class="dev-info">
+                            <div class="dev-name">@dev.Name</div>
+                            <div class="dev-role">@dev.Role</div>
+                            @if (!string.IsNullOrEmpty(project))
+                            {
+                                <div class="dev-project">@project</div>
+                            }
+                        </div>
+                        <div class="cap-bar-wrap">
+                            <div class="cap-bar @(onLeave ? "cap-bar-muted" : CapacityBarClass(dev.CapacityPercent))"
+                                 style="width: @(Math.Min(dev.CapacityPercent, 100))%"></div>
+                        </div>
+                        <div class="cap-pct @(onLeave ? "text-muted" : CapacityClass(dev.CapacityPercent))">
+                            @dev.CapacityPercent%
+                        </div>
+                        @if (onLeave)
+                        {
+                            <span class="badge badge-leave">On Leave</span>
+                        }
+                        else
+                        {
+                            <span class="badge @CapacityBadgeClass(dev.CapacityPercent)">@CapacityLabel(dev.CapacityPercent)</span>
+                        }
+                        <div class="dev-tasks">@dev.TaskCount tasks</div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     EXPANDABLE: Task List
+     ═══════════════════════════════════════════════ -->
+<div class="accordion-card @(showTasks ? "accordion-open" : "")">
+    <button class="accordion-header" @onclick="ToggleTasks">
+        <div class="accordion-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+            </svg>
+            <span>Task List</span>
+            <span class="accordion-sub">All assigned tasks across the team</span>
+        </div>
+        <div class="accordion-right">
+            <span class="accordion-badge @(showTasks ? "accordion-badge-open" : "")">
+                @(showTasks ? "Hide" : "Show")
+            </span>
+            <svg class="accordion-chevron @(showTasks ? "chevron-up" : "")"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <polyline points="6 9 12 15 18 9" />
+            </svg>
+        </div>
+    </button>
+    @if (showTasks)
+    {
+        <div class="accordion-body">
+            @if (!DataService.Tasks.Any())
+            {
+                <div class="empty-state">No tasks found. Upload an Excel file to populate data.</div>
+            }
+            else
+            {
+                <div class="task-table">
+                    <div class="task-table-head">
+                        <div>Task</div>
+                        <div>Assignee</div>
+                        <div>Due Date</div>
+                        <div>Priority</div>
+                        <div>Status</div>
+                    </div>
+                    @foreach (var task in DataService.Tasks
+                        .OrderBy(t => t.Priority == "High" ? 0 : t.Priority == "Medium" ? 1 : 2)
+                        .ThenBy(t => t.DueDate))
                     {
-                        <div class="dev-project">@project</div>
+                        var devIdx  = DataService.Developers.FindIndex(d => d.Name == task.Assignee);
+                        var overdue = task.DueDate < DateOnly.FromDateTime(DateTime.Today) && task.Status != "Done";
+                        <div class="task-row">
+                            <div class="task-name">@task.Title</div>
+                            <div class="task-assignee">
+                                <div class="avatar avatar-sm avatar-@(devIdx % 8)">
+                                    @(DataService.Developers.FirstOrDefault(d => d.Name == task.Assignee)?.AvatarInitials ?? "?")
+                                </div>
+                                <span>@task.Assignee</span>
+                            </div>
+                            <div class="task-due @(overdue ? "text-danger" : "")">
+                                @task.DueDate.ToString("MMM d")
+                                @if (overdue) { <span class="overdue-tag">Overdue</span> }
+                            </div>
+                            <div>
+                                <span class="priority-chip priority-@task.Priority?.ToLower()">@task.Priority</span>
+                            </div>
+                            <div>
+                                <span class="status-chip status-@task.Status?.ToLower().Replace(" ", "-")">@task.Status</span>
+                            </div>
+                        </div>
                     }
                 </div>
-                <div class="cap-bar-wrap">
-                    <div class="cap-bar @(onLeave ? "cap-bar-muted" : CapacityBarClass(dev.CapacityPercent))"
-                         style="width: @(Math.Min(dev.CapacityPercent, 100))%"></div>
-                </div>
-                <div class="cap-pct @(onLeave ? "text-muted" : CapacityClass(dev.CapacityPercent))">
-                    @dev.CapacityPercent%
-                </div>
-                @if (onLeave)
-                {
-                    <span class="badge badge-leave">On Leave</span>
-                }
-                else
-                {
-                    <span class="badge @CapacityBadgeClass(dev.CapacityPercent)">@CapacityLabel(dev.CapacityPercent)</span>
-                }
-                <div class="dev-tasks">@dev.TaskCount tasks</div>
-            </div>
-        }
-    </div>
+            }
+        </div>
+    }
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -107,31 +198,23 @@
             <span class="accordion-sub">Team leave and availability at a glance</span>
         </div>
         <div class="accordion-right">
-            @if (showAvailCalendar)
-            {
-                <span class="accordion-badge accordion-badge-open">Hide</span>
-            }
-            else
-            {
-                <span class="accordion-badge">Show</span>
-            }
+            <span class="accordion-badge @(showAvailCalendar ? "accordion-badge-open" : "")">
+                @(showAvailCalendar ? "Hide" : "Show")
+            </span>
             <svg class="accordion-chevron @(showAvailCalendar ? "chevron-up" : "")"
                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                 <polyline points="6 9 12 15 18 9" />
             </svg>
         </div>
     </button>
-
     @if (showAvailCalendar)
     {
         <div class="accordion-body">
-            <!-- Month nav -->
             <div class="cal-nav-inline">
                 <button class="btn-ghost" @onclick="AvailPrevMonth">&#8249;</button>
                 <span class="cal-month-label">@AvailDate.ToString("MMMM yyyy")</span>
                 <button class="btn-ghost" @onclick="AvailNextMonth">&#8250;</button>
             </div>
-
             <div class="cal-grid-header">
                 @foreach (var (d, i) in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }.Select((d, i) => (d, i)))
                 {
@@ -149,16 +232,13 @@
                     {
                         var isWeekend = cell.Value.DayOfWeek == DayOfWeek.Saturday || cell.Value.DayOfWeek == DayOfWeek.Sunday;
                         var isMeeting = cell.Value.DayOfWeek == DayOfWeek.Thursday || cell.Value.DayOfWeek == DayOfWeek.Friday;
-                        var isToday = cell.Value == DateOnly.FromDateTime(DateTime.Today);
-                        var leaves = isWeekend ? new List<LeaveRecord>() : GetLeavesForDay(cell.Value);
-
+                        var isToday   = cell.Value == DateOnly.FromDateTime(DateTime.Today);
+                        var leaves    = isWeekend ? new List<LeaveRecord>() : GetLeavesForDay(cell.Value);
                         <div class="cal-cell
-                            @(isToday ? "cal-cell-today" : "")
+                            @(isToday   ? "cal-cell-today"   : "")
                             @(isWeekend ? "cal-cell-weekend" : "")
                             @(isMeeting ? "cal-cell-meeting" : "")">
-
                             <span class="cal-date @(isToday ? "cal-date-today" : "")">@cell.Value.Day</span>
-
                             @if (isWeekend)
                             {
                                 <span class="cal-off">Day Off</span>
@@ -193,8 +273,6 @@
                     }
                 }
             </div>
-
-            <!-- Legend -->
             <div class="legend-inline">
                 <div class="legend-title">Who's on leave this month</div>
                 <div class="legend-grid">
@@ -239,21 +317,15 @@
             <span class="accordion-sub">All scheduled leaves for the team</span>
         </div>
         <div class="accordion-right">
-            @if (showLeaveCalendar)
-            {
-                <span class="accordion-badge accordion-badge-open">Hide</span>
-            }
-            else
-            {
-                <span class="accordion-badge">Show</span>
-            }
+            <span class="accordion-badge @(showLeaveCalendar ? "accordion-badge-open" : "")">
+                @(showLeaveCalendar ? "Hide" : "Show")
+            </span>
             <svg class="accordion-chevron @(showLeaveCalendar ? "chevron-up" : "")"
                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                 <polyline points="6 9 12 15 18 9" />
             </svg>
         </div>
     </button>
-
     @if (showLeaveCalendar)
     {
         <div class="accordion-body">
@@ -263,14 +335,73 @@
                 <span class="cal-month-label">@LeaveDate.ToString("MMMM yyyy")</span>
                 <button class="btn-ghost" @onclick="LeaveNextMonth">&#8250;</button>
             </div>
-
+            <!-- Calendar grid -->
+            <div class="lc-grid">
+                @foreach (var dayName in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+                {
+                    <div class="lc-dow-header">@dayName</div>
+                }
+                @{
+                    var lcStart = new DateOnly(LeaveDate.Year, LeaveDate.Month, 1);
+                    var lcEnd   = new DateOnly(LeaveDate.Year, LeaveDate.Month,
+                                      DateTime.DaysInMonth(LeaveDate.Year, LeaveDate.Month));
+                }
+                @for (int offset = 0; offset < (int)lcStart.DayOfWeek; offset++)
+                {
+                    <div class="lc-day lc-day-empty"></div>
+                }
+                @for (var day = lcStart; day <= lcEnd; day = day.AddDays(1))
+                {
+                    var dayLeaves = DataService.Leaves
+                        .Where(l => l.StartDate <= day && l.EndDate >= day)
+                        .ToList();
+                    var isToday   = day == DateOnly.FromDateTime(DateTime.Today);
+                    var isWeekend = day.DayOfWeek == DayOfWeek.Saturday || day.DayOfWeek == DayOfWeek.Sunday;
+                    <div class="lc-day @(isToday ? "lc-day-today" : "") @(isWeekend ? "lc-day-weekend" : "")">
+                        <div class="lc-date @(isToday ? "lc-date-today" : "")">@day.Day</div>
+                        @if (isWeekend)
+                        {
+                            <div class="lc-empty-day">Day Off</div>
+                        }
+                        else if (dayLeaves.Any())
+                        {
+                            @foreach (var leave in dayLeaves)
+                            {
+                                <div class="lc-chip @GetLeaveChipClass(leave.LeaveType)">
+                                    @leave.DeveloperName
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="lc-empty-day">Available</div>
+                        }
+                    </div>
+                }
+            </div>
+            <!-- Legend -->
+            <div class="lc-legend">
+                <div class="lc-legend-item">
+                    <span class="lc-legend-color chip-vacation"></span>Vacation
+                </div>
+                <div class="lc-legend-item">
+                    <span class="lc-legend-color chip-sick"></span>Sick Leave
+                </div>
+                <div class="lc-legend-item">
+                    <span class="lc-legend-color chip-wfh"></span>WFH
+                </div>
+                <div class="lc-legend-item">
+                    <span class="lc-legend-color lc-weekend-color"></span>Day Off
+                </div>
+            </div>
+            <div style="border-top: 1px solid #f3f4f6; margin: 0.5rem 0 1rem;"></div>
+            <!-- Leave table -->
             @if (!DataService.Leaves.Any())
             {
                 <div class="empty-state">No leave records found. Upload an Excel file to populate data.</div>
             }
             else
             {
-                <!-- Leave rows grouped by developer -->
                 <div class="leave-table">
                     <div class="leave-table-head">
                         <div>Member</div>
@@ -282,8 +413,8 @@
                     </div>
                     @foreach (var lv in GetLeavesForMonth(LeaveDate))
                     {
-                        var devIdx = DataService.Developers.FindIndex(d => d.Name == lv.DeveloperName);
-                        var days = (lv.EndDate.ToDateTime(TimeOnly.MinValue) - lv.StartDate.ToDateTime(TimeOnly.MinValue)).Days + 1;
+                        var devIdx   = DataService.Developers.FindIndex(d => d.Name == lv.DeveloperName);
+                        var days     = (lv.EndDate.ToDateTime(TimeOnly.MinValue) - lv.StartDate.ToDateTime(TimeOnly.MinValue)).Days + 1;
                         var isActive = lv.IsActive;
                         <div class="leave-row">
                             <div class="leave-member">
@@ -292,9 +423,7 @@
                                 </div>
                                 <span>@lv.DeveloperName</span>
                             </div>
-                            <div>
-                                <span class="leave-type-chip">@lv.LeaveType</span>
-                            </div>
+                            <div><span class="leave-type-chip">@lv.LeaveType</span></div>
                             <div class="leave-date">@lv.StartDate.ToString("MMM d")</div>
                             <div class="leave-date">@lv.EndDate.ToString("MMM d, yyyy")</div>
                             <div class="leave-days">@days d</div>
@@ -311,7 +440,6 @@
                         </div>
                     }
                 </div>
-
                 @if (!GetLeavesForMonth(LeaveDate).Any())
                 {
                     <div class="empty-state">No leaves scheduled for @LeaveDate.ToString("MMMM yyyy").</div>
@@ -331,11 +459,9 @@
         overflow: hidden;
         transition: box-shadow 0.2s;
     }
-
-        .accordion-card.accordion-open {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
-        }
-
+    .accordion-card.accordion-open {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+    }
     .accordion-header {
         width: 100%;
         display: flex;
@@ -348,11 +474,7 @@
         gap: 1rem;
         transition: background 0.15s;
     }
-
-        .accordion-header:hover {
-            background: #f9fafb;
-        }
-
+    .accordion-header:hover { background: #f9fafb; }
     .accordion-title {
         display: flex;
         align-items: center;
@@ -361,26 +483,19 @@
         font-size: 0.9rem;
         color: #111827;
     }
-
-        .accordion-title svg {
-            color: #6b7280;
-            flex-shrink: 0;
-        }
-
+    .accordion-title svg { color: #6b7280; flex-shrink: 0; }
     .accordion-sub {
         font-weight: 400;
         font-size: 0.78rem;
         color: #9ca3af;
         margin-left: 0.25rem;
     }
-
     .accordion-right {
         display: flex;
         align-items: center;
         gap: 0.5rem;
         flex-shrink: 0;
     }
-
     .accordion-badge {
         font-size: 0.7rem;
         font-weight: 600;
@@ -391,38 +506,24 @@
         border: 1px solid #e5e7eb;
         letter-spacing: 0.02em;
     }
-
     .accordion-badge-open {
         background: #eff6ff;
         color: #3b82f6;
         border-color: #bfdbfe;
     }
-
     .accordion-chevron {
         color: #9ca3af;
         transition: transform 0.25s ease;
     }
-
-        .accordion-chevron.chevron-up {
-            transform: rotate(180deg);
-        }
-
+    .accordion-chevron.chevron-up { transform: rotate(180deg); }
     .accordion-body {
         padding: 0 1.25rem 1.25rem;
         border-top: 1px solid #f3f4f6;
         animation: accordionDown 0.2s ease;
     }
-
     @@keyframes accordionDown {
-        from {
-            opacity: 0;
-            transform: translateY(-6px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0);    }
     }
 
     /* ── Inline calendar nav ────────────────────────── */
@@ -433,21 +534,10 @@
         padding: 0.85rem 0 0.75rem;
     }
 
-    /* ── Calendar grid (reuses existing styles) ──────── */
-    .cal-day-head-weekend {
-        color: #d1d5db;
-    }
-
-    .cal-cell-weekend {
-        background: #f9fafb;
-        opacity: 0.6;
-    }
-
-    .cal-cell-meeting {
-        background: #fffbeb;
-        border-color: #f59e0b;
-    }
-
+    /* ── Availability Calendar ──────────────────────── */
+    .cal-day-head-weekend { color: #d1d5db; }
+    .cal-cell-weekend     { background: #f9fafb; opacity: 0.6; }
+    .cal-cell-meeting     { background: #fffbeb; border-color: #f59e0b; }
     .cal-off {
         display: block;
         font-size: 11px;
@@ -455,7 +545,6 @@
         font-weight: 500;
         margin-top: 4px;
     }
-
     .cal-meeting-chip {
         display: inline-flex;
         align-items: center;
@@ -469,17 +558,13 @@
         margin-top: 4px;
         margin-bottom: 4px;
     }
-
     .legend-meeting-dot {
-        width: 12px;
-        height: 12px;
+        width: 12px; height: 12px;
         border-radius: 3px;
         background: #f59e0b;
     }
-
     .legend-off-dot {
-        width: 12px;
-        height: 12px;
+        width: 12px; height: 12px;
         border-radius: 3px;
         background: #e5e7eb;
     }
@@ -490,7 +575,6 @@
         padding-top: 0.85rem;
         border-top: 1px solid #f3f4f6;
     }
-
     .legend-title {
         font-size: 0.75rem;
         font-weight: 600;
@@ -499,6 +583,85 @@
         letter-spacing: 0.05em;
         margin-bottom: 0.6rem;
     }
+
+    /* ── Leave Calendar (leaves.razor style) ────────── */
+    .lc-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 12px;
+        padding: 16px 0;
+    }
+    .lc-dow-header {
+        text-align: center;
+        font-size: 12px;
+        font-weight: 700;
+        color: #6b7280;
+        padding: 8px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .lc-day {
+        min-height: 140px;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 12px;
+        background: #fff;
+    }
+    .lc-day-empty {
+        border: none;
+        background: transparent;
+        min-height: 140px;
+    }
+    .lc-day-weekend {
+        background: #f9fafb;
+        opacity: 0.6;
+    }
+    .lc-day-today {
+        border: 2px solid #6366f1;
+        background: #eef2ff;
+    }
+    .lc-date {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #111827;
+    }
+    .lc-date-today { color: #6366f1; }
+    .lc-chip {
+        padding: 4px 10px;
+        border-radius: 999px;
+        color: white;
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .lc-empty-day  { color: #9ca3af; font-size: 12px; }
+    .lc-legend {
+        display: flex;
+        gap: 20px;
+        padding: 4px 0 16px;
+        flex-wrap: wrap;
+    }
+    .lc-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #374151;
+    }
+    .lc-legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        display: inline-block;
+    }
+    .lc-weekend-color  { background: #e5e7eb; }
+    .chip-vacation     { background: #22c55e; }
+    .chip-sick         { background: #ef4444; }
+    .chip-wfh          { background: #3b82f6; }
 
     /* ── Leave table ────────────────────────────────── */
     .leave-table {
@@ -509,7 +672,6 @@
         overflow: hidden;
         font-size: 0.83rem;
     }
-
     .leave-table-head {
         display: grid;
         grid-template-columns: 1.8fr 1.2fr 1fr 1.3fr 0.6fr 0.8fr;
@@ -523,7 +685,6 @@
         border-bottom: 1px solid #f3f4f6;
         gap: 0.5rem;
     }
-
     .leave-row {
         display: grid;
         grid-template-columns: 1.8fr 1.2fr 1fr 1.3fr 0.6fr 0.8fr;
@@ -533,15 +694,8 @@
         border-bottom: 1px solid #f9fafb;
         transition: background 0.12s;
     }
-
-        .leave-row:last-child {
-            border-bottom: none;
-        }
-
-        .leave-row:hover {
-            background: #fafafa;
-        }
-
+    .leave-row:last-child { border-bottom: none; }
+    .leave-row:hover      { background: #fafafa; }
     .leave-member {
         display: flex;
         align-items: center;
@@ -549,13 +703,11 @@
         font-weight: 500;
         color: #111827;
     }
-
     .avatar-sm {
         width: 26px !important;
         height: 26px !important;
         font-size: 0.62rem !important;
     }
-
     .leave-type-chip {
         display: inline-block;
         padding: 2px 8px;
@@ -565,16 +717,91 @@
         font-size: 0.72rem;
         font-weight: 600;
     }
+    .leave-date { color: #374151; }
+    .leave-days { color: #6b7280; font-weight: 600; }
 
-    .leave-date {
+    /* ── Task table ─────────────────────────────────── */
+    .task-table {
+        width: 100%;
+        margin-top: 0.75rem;
+        border: 1px solid #f3f4f6;
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 0.83rem;
+    }
+    .task-table-head {
+        display: grid;
+        grid-template-columns: 2fr 1.4fr 1fr 0.8fr 0.9fr;
+        background: #f9fafb;
+        padding: 0.55rem 1rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 1px solid #f3f4f6;
+        gap: 0.5rem;
+    }
+    .task-row {
+        display: grid;
+        grid-template-columns: 2fr 1.4fr 1fr 0.8fr 0.9fr;
+        padding: 0.6rem 1rem;
+        align-items: center;
+        gap: 0.5rem;
+        border-bottom: 1px solid #f9fafb;
+        transition: background 0.12s;
+    }
+    .task-row:last-child { border-bottom: none; }
+    .task-row:hover      { background: #fafafa; }
+    .task-name {
+        font-weight: 500;
+        color: #111827;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .task-assignee {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
         color: #374151;
     }
-
-    .leave-days {
-        color: #6b7280;
+    .task-due  { color: #374151; font-size: 0.82rem; }
+    .overdue-tag {
+        display: inline-block;
+        margin-left: 4px;
+        padding: 1px 6px;
+        background: #fee2e2;
+        color: #dc2626;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 700;
+    }
+    .priority-chip {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .priority-high   { background: #fee2e2; color: #dc2626; }
+    .priority-medium { background: #fef3c7; color: #d97706; }
+    .priority-low    { background: #dcfce7; color: #16a34a; }
+    .status-chip {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.7rem;
         font-weight: 600;
     }
+    .status-in-progress { background: #eff6ff; color: #3b82f6; }
+    .status-done        { background: #dcfce7; color: #16a34a; }
+    .status-blocked     { background: #fee2e2; color: #dc2626; }
+    .status-todo        { background: #f3f4f6; color: #6b7280; }
 
+    /* ── Shared ─────────────────────────────────────── */
     .empty-state {
         text-align: center;
         padding: 2rem;
@@ -584,7 +811,7 @@
 </style>
 
 @code {
-    // ── Workload ──────────────────────────────────────
+    // ── File upload ───────────────────────────────────
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
         var file = e.File;
@@ -593,31 +820,33 @@
         StateHasChanged();
     }
 
-    private string CapacityClass(int pct) => pct >= 90 ? "val-danger" : pct >= 70 ? "val-warn" : "val-ok";
-    private string CapacityBarClass(int pct) => pct >= 90 ? "cap-bar-danger" : pct >= 70 ? "cap-bar-warn" : "cap-bar-ok";
+    // ── Capacity helpers ──────────────────────────────
+    private string CapacityClass(int pct)      => pct >= 90 ? "val-danger" : pct >= 70 ? "val-warn" : "val-ok";
+    private string CapacityBarClass(int pct)   => pct >= 90 ? "cap-bar-danger" : pct >= 70 ? "cap-bar-warn" : "cap-bar-ok";
     private string CapacityBadgeClass(int pct) => pct >= 90 ? "badge-full" : pct >= 70 ? "badge-busy" : "badge-avail";
-    private string CapacityLabel(int pct) => pct >= 90 ? "Full" : pct >= 70 ? "Busy" : "Available";
+    private string CapacityLabel(int pct)      => pct >= 90 ? "Full" : pct >= 70 ? "Busy" : "Available";
 
     // ── Accordion state ───────────────────────────────
+    private bool showWorkload      = true;
+    private bool showTasks         = false;
     private bool showAvailCalendar = false;
     private bool showLeaveCalendar = false;
 
+    private void ToggleWorkload()      => showWorkload      = !showWorkload;
+    private void ToggleTasks()         => showTasks         = !showTasks;
     private void ToggleAvailCalendar() => showAvailCalendar = !showAvailCalendar;
     private void ToggleLeaveCalendar() => showLeaveCalendar = !showLeaveCalendar;
 
-    // ── Availability calendar ─────────────────────────
+    // ── Calendar dates ────────────────────────────────
     private DateOnly AvailDate = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly LeaveDate = DateOnly.FromDateTime(DateTime.Today);
 
     private void AvailPrevMonth() => AvailDate = AvailDate.AddMonths(-1);
     private void AvailNextMonth() => AvailDate = AvailDate.AddMonths(1);
-
-    // ── Leave calendar ────────────────────────────────
-    private DateOnly LeaveDate = DateOnly.FromDateTime(DateTime.Today);
-
     private void LeavePrevMonth() => LeaveDate = LeaveDate.AddMonths(-1);
     private void LeaveNextMonth() => LeaveDate = LeaveDate.AddMonths(1);
 
-    // ── Shared helpers ────────────────────────────────
+    // ── Calendar helpers ──────────────────────────────
     private List<DateOnly?> GetCalendarCells(DateOnly date)
     {
         var cells = new List<DateOnly?>();
@@ -633,8 +862,17 @@
 
     private List<LeaveRecord> GetLeavesForMonth(DateOnly date) =>
         DataService.Leaves
-            .Where(l => l.StartDate.Month == date.Month && l.StartDate.Year == date.Year
-                     || l.EndDate.Month == date.Month && l.EndDate.Year == date.Year)
+            .Where(l => (l.StartDate.Month == date.Month && l.StartDate.Year == date.Year)
+                     || (l.EndDate.Month   == date.Month && l.EndDate.Year   == date.Year))
             .OrderBy(l => l.StartDate)
             .ToList();
+
+    // ── Leave chip class ──────────────────────────────
+    private string GetLeaveChipClass(string leaveType) => leaveType switch
+    {
+        "Vacation" => "chip-vacation",
+        "Sick"     => "chip-sick",
+        "WFH"      => "chip-wfh",
+        _          => "chip-wfh"
+    };
 }
